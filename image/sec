@@ -1,0 +1,11 @@
+#!/bin/bash
+# SecForge 容器内工具速查 (AI / 人 都用这个)
+IDX=/opt/secforge/tools_index.json
+case "$1" in
+  list)     jq -r '.[] | select(.category=="'"${2:-}"'") | "\(.name)\t\(.stars)\t\(.install_method)"' $IDX 2>/dev/null | head -60 ;;
+  search)   jq -r --arg q "$2" '.[] | select((.name+" "+(.desc//"")) | test($q;"i")) | "\(.name)\t\(.stars)\t\(.desc[:70])"' $IDX | head -40 ;;
+  cats)     jq -r '.[].category' $IDX | sort | uniq -c | sort -rn ;;
+  info)     jq -r --arg n "$2" '.[] | select(.name==$n)' $IDX ;;
+  which)    command -v "$2" ;;
+  *) echo "sec {list <分类>|search <关键词>|cats|info <工具>|which <工具>}" ;;
+esac

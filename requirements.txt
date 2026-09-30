@@ -1,0 +1,7 @@
+# 控制台 / 数据层
+mcp<2
+requests
+
+# 说明：抓取 GitHub 用系统自带的 urllib + gh CLI，不额外依赖。
+# 界面用 Python 标准库（http.server / sqlite3），不额外依赖。
+# 原生 macOS 版（native/）是 Swift，用系统自带的 SwiftUI + SQLite3，不额外依赖。

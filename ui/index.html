@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SecForge · 一体化安全工具箱</title>
+<style>
+:root{
+  --bg:#0b0f0d; --panel:#141b17; --panel2:#111815; --line:#233029;
+  --txt:#d8e2db; --dim:#8ba294; --green:#5fa04a; --green2:#3d6b33;
+  --orange:#e07b2a; --red:#c2483c; --amber:#c9a227;
+  --r:10px; --rs:8px;
+}
+@media (prefers-color-scheme: light){
+  :root{ --bg:#f4f6f3; --panel:#ffffff; --panel2:#fafbf9; --line:#d8dfd6;
+         --txt:#1a201c; --dim:#5d6b62; --green:#3f7a2e; --green2:#5fa04a;
+         --orange:#c96a1e; --red:#a83a2e; --amber:#9a7c14; }
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font:14px/1.6 -apple-system,"PingFang SC","Helvetica Neue",sans-serif;
+     -webkit-font-smoothing:antialiased}
+#app{max-width:1240px;margin:0 auto;padding:20px 22px 60px}
+code,pre,.mono{font-family:"SF Mono",Menlo,Consolas,monospace}
+
+/* 顶部 */
+header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.logo{font-size:19px;font-weight:700;letter-spacing:.5px}
+.logo i{color:var(--green);font-style:normal}
+.sub{color:var(--dim);font-size:12px}
+.pills{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
+.pill{background:var(--panel);border:1px solid var(--line);border-radius:99px;padding:4px 11px;font-size:12px;
+      color:var(--dim);white-space:nowrap}
+.pill b{color:var(--txt);font-weight:600}
+.pill .ok{color:var(--green)} .pill .off{color:var(--red)}
+
+/* 标签栏 */
+nav{display:flex;gap:4px;margin:16px 0 18px;flex-wrap:wrap}
+nav button{background:transparent;border:1px solid transparent;color:var(--dim);padding:7px 14px;border-radius:var(--rs);
+           font-size:13.5px;cursor:pointer;transition:.15s}
+nav button:hover{color:var(--txt);background:var(--panel)}
+nav button.on{background:var(--panel);border-color:var(--line);color:var(--txt);font-weight:600}
+
+/* 面板 */
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;margin-bottom:14px}
+.panel h3{font-size:13px;font-weight:600;color:var(--dim);letter-spacing:.4px;margin-bottom:12px;text-transform:uppercase}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.stat{background:var(--panel2);border:1px solid var(--line);border-radius:var(--rs);padding:14px 16px}
+.stat .n{font-size:25px;font-weight:700;letter-spacing:-.5px}
+.stat .l{font-size:12px;color:var(--dim);margin-top:2px}
+.stat.g .n{color:var(--green)} .stat.o .n{color:var(--orange)} .stat.r .n{color:var(--red)}
+
+/* 表单 */
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+input,select,textarea{background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:var(--rs);
+                      padding:8px 11px;font-size:13.5px;font-family:inherit;transition:.15s;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--green)}
+input[type=search]{min-width:260px;flex:1}
+label.chk{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--dim);cursor:pointer;user-select:none}
+label.chk input{accent-color:var(--green);width:15px;height:15px}
+button.act{background:var(--green);color:#fff;border:none;border-radius:var(--rs);padding:8px 16px;font-size:13.5px;
+           font-weight:600;cursor:pointer;transition:.15s;font-family:inherit}
+button.act:hover{background:var(--green2)}
+button.act:disabled{opacity:.45;cursor:default}
+button.ghost{background:transparent;color:var(--txt);border:1px solid var(--line);border-radius:var(--rs);
+             padding:8px 14px;font-size:13.5px;cursor:pointer;transition:.15s;font-family:inherit}
+button.ghost:hover{border-color:var(--green);color:var(--green)}
+button.warn{background:transparent;color:var(--orange);border:1px solid var(--orange)}
+button.warn:hover{background:var(--orange);color:#fff}
+button.mini{background:transparent;border:1px solid var(--line);color:var(--dim);border-radius:6px;padding:3px 9px;
+            font-size:12px;cursor:pointer;font-family:inherit}
+button.mini:hover{border-color:var(--green);color:var(--green)}
+
+/* 列表 */
+.list{margin-top:4px}
+.item{border-top:1px solid var(--line);padding:11px 2px;cursor:pointer;transition:.12s}
+.item:hover{background:var(--panel2)}
+.item .t{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+.item .nm{font-weight:600;font-size:14px}
+.item .st{font-size:12px;color:var(--dim)}
+.item .tag{font-size:11px;border:1px solid var(--line);border-radius:5px;padding:1px 7px;color:var(--dim)}
+.item .tag.g{color:var(--green);border-color:var(--green2)}
+.item .tag.o{color:var(--orange);border-color:var(--orange)}
+.item .tag.r{color:var(--red);border-color:var(--red)}
+.item .d{color:var(--dim);font-size:12.5px;margin-top:4px;line-height:1.5}
+.det{background:var(--panel2);border:1px solid var(--line);border-radius:var(--rs);padding:12px 14px;margin:9px 0 4px;
+     font-size:13px}
+.det .kv{display:grid;grid-template-columns:96px 1fr;gap:3px 10px;margin-bottom:6px}
+.det .kv span:nth-child(odd){color:var(--dim)}
+.cmdline{display:flex;gap:8px;align-items:center;margin-top:8px}
+.cmdline code{flex:1;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 10px;font-size:12.5px;
+              overflow-x:auto;white-space:nowrap}
+pre.out{background:#070a09;color:#c7d6c9;border:1px solid var(--line);border-radius:var(--rs);padding:13px 15px;
+        font-size:12.5px;line-height:1.55;max-height:430px;overflow:auto;white-space:pre-wrap;word-break:break-all}
+@media (prefers-color-scheme: light){ pre.out{background:#10160f;color:#c9d8cb} }
+.vulnbox{border:1px solid var(--orange);border-radius:var(--rs);padding:13px 15px;margin-top:12px;background:var(--panel2)}
+.vulnbox h4{font-size:12px;color:var(--orange);margin-bottom:9px;letter-spacing:.4px;text-transform:uppercase}
+.vulnbox pre{white-space:pre-wrap;font-size:12.5px;line-height:1.6;color:var(--txt)}
+.empty{color:var(--dim);font-size:13px;padding:22px 0;text-align:center}
+.spin{display:inline-block;width:13px;height:13px;border:2px solid var(--line);border-top-color:var(--green);
+      border-radius:50%;animation:s .7s linear infinite;vertical-align:-2px;margin-right:7px}
+@keyframes s{to{transform:rotate(360deg)}}
+#toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%) translateY(14px);background:var(--green);color:#fff;
+       padding:9px 20px;border-radius:99px;font-size:13.5px;opacity:0;pointer-events:none;transition:.22s;z-index:99}
+#toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+.hint{font-size:12.5px;color:var(--dim);margin-top:8px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:820px){.two{grid-template-columns:1fr}}
+
+/* AI 对话 */
+.chatlog{display:flex;flex-direction:column;gap:10px;min-height:300px;max-height:54vh;overflow:auto;
+         padding:4px 2px;margin-top:12px}
+.msg{max-width:84%;padding:10px 13px;border-radius:10px;font-size:13.5px;line-height:1.65;
+     white-space:pre-wrap;word-break:break-word}
+.msg.u{align-self:flex-end;background:var(--green2);color:#fff}
+.msg.a{align-self:flex-start;background:var(--panel2);border:1px solid var(--line)}
+.msg.s{align-self:flex-start;color:var(--dim);font-size:12.5px;padding:2px 4px;white-space:pre-wrap}
+.msg.e{align-self:flex-start;background:var(--panel2);border:1px solid var(--red);color:var(--red)}
+.msg.t{align-self:flex-start;background:var(--bg);border:1px dashed var(--line);color:var(--green);
+       font-family:"SF Mono",Menlo,monospace;font-size:12px;padding:6px 10px;max-width:90%;border-radius:8px}
+.msg.r{align-self:flex-start;background:var(--bg);border:1px solid var(--line);color:var(--dim);
+       font-size:11.5px;max-width:90%;max-height:110px;overflow:auto;border-radius:8px;
+       font-family:"SF Mono",Menlo,monospace;padding:6px 10px}
+#chatbrain{font-size:12.5px;padding:5px 9px}
+.brain-note{font-size:11.5px;color:var(--dim)}
+.chip{border:1px solid var(--line);background:transparent;color:var(--dim);border-radius:99px;
+      padding:5px 12px;font-size:12.5px;cursor:pointer;transition:.15s;font-family:inherit}
+.chip:hover{border-color:var(--green);color:var(--green)}
+#chatinput{flex:1;min-height:62px;max-height:180px;resize:vertical;min-width:280px}
+.timer{font-size:12.5px;color:var(--orange);font-family:"SF Mono",Menlo,monospace}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div>
+      <div class="logo">SEC<i>FORGE</i> <span class="sub">一体化安全工具箱</span></div>
+      <div class="sub" id="hint">工具库 · 漏洞库 · Kali 容器 · AI 编排</div>
+    </div>
+    <div class="pills" id="pills"></div>
+  </header>
+
+  <nav id="nav">
+    <button data-t="chat">问 AI</button>
+    <button data-t="overview" class="on">总览</button>
+    <button data-t="tools">工具库</button>
+    <button data-t="vulns">漏洞库</button>
+    <button data-t="win">Windows 漏洞</button>
+    <button data-t="scan">扫描</button>
+    <button data-t="jobs">任务</button>
+    <button data-t="settings">设置</button>
+  </nav>
+
+  <!-- 问 AI -->
+  <section id="t-chat" hidden>
+    <div class="panel">
+      <div class="row">
+        <h3 style="margin:0">直接跟我说要干什么</h3>
+        <select id="chatbrain" title="选哪个大脑来干活">
+          <option value="hermes">大脑：Hermes 真身（全权限：能改文件、上网、记住你）</option>
+          <option value="ds">大脑：DeepSeek 直连（只管工具箱，碰不到你的 Mac）</option>
+        </select>
+        <span class="hint" style="margin-left:auto" id="chatstate">新对话</span>
+        <button class="mini" id="chatnew">新对话</button>
+      </div>
+      <div class="chatlog" id="chatlog">
+        <div class="msg s">两个大脑共用同一个工具箱（同一个 Kali 容器、同一份漏洞库）。你在上面下拉框里挑用哪个，也可以两个都开着轮流使唤——它们互不干扰。
+Hermes 那个有全权限（能改你 Mac 上的文件、上网、有记忆）；DeepSeek 那个只能动容器，碰不到你电脑里的东西。</div>
+      </div>
+      <div class="row" style="margin-top:12px;align-items:flex-start">
+        <textarea id="chatinput" placeholder="例：扫一下 192.168.10.1，把服务和已知漏洞对应起来&#10;回车发送，Shift+回车换行"></textarea>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button class="act" id="chatsend">发送</button>
+          <button class="ghost" id="chatstop" disabled>停止</button>
+        </div>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <span class="hint">常用：</span>
+        <button class="chip" data-q="扫一下 192.168.10.1，列出开放服务并关联已知漏洞">扫本机网关</button>
+        <button class="chip" data-q="列出漏洞库里已被真实利用、且有公开 PoC 的 Windows SMB 漏洞，按 CVSS 排序，带补丁号">SMB 高危漏洞</button>
+        <button class="chip" data-q="Windows 10 22H2（内部版本 19045）现在必须打哪些补丁？给我 KB 号">Win10 补丁清单</button>
+        <button class="chip" data-q="看看 secforge 容器里现在装了多少工具，还缺哪些常见的，帮我补上">补齐缺的工具</button>
+        <label class="chk" style="margin-left:auto"><input type="checkbox" id="chatyolo"> 自动批准命令</label>
+        <span class="timer" id="chattimer"></span>
+      </div>
+      <div class="hint">「自动批准命令」勾上后危险命令不再拦（适合你自己授权的靶场）；默认不勾更安全。长任务可以点停止。</div>
+    </div>
+  </section>
+
+  <!-- 总览 -->
+  <section id="t-overview">
+    <div class="panel"><h3>资源</h3><div class="grid" id="ovGrid"></div></div>
+    <div class="panel"><h3>环境</h3><div id="ovEnv" class="mono" style="font-size:12.5px;line-height:1.9"></div></div>
+    <div class="panel"><h3>怎么用</h3>
+      <div class="hint" style="line-height:2">
+        · <b>扫描</b>页：填目标 → 选工具 → 运行，输出里会自动附上匹配到的 CVE<br>
+        · <b>Windows 漏洞</b>页：输入系统内部版本号（如 19045），列出该版本漏洞 + 应打补丁<br>
+        · 让 AI 干：对 Hermes 说「扫一下 192.168.10.1 并把服务对应到已知漏洞」<br>
+        · 安全线：政府/教育/军方域名一律拦，只打自有设备、本地靶场、授权平台
+      </div>
+    </div>
+  </section>
+
+  <!-- 工具库 -->
+  <section id="t-tools" hidden>
+    <div class="panel">
+      <div class="row">
+        <input type="search" id="tq" placeholder="搜工具：nuclei / sqlmap / osint / smb ...">
+        <select id="tcat"><option value="">全部分类</option></select>
+        <select id="tkind">
+          <option value="tool">真工具</option>
+          <option value="reference">清单/参考</option>
+          <option value="">全部</option>
+        </select>
+        <select id="tsort">
+          <option value="score">综合排序</option>
+          <option value="stars">按星数</option>
+          <option value="pushed">最近更新</option>
+        </select>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <label class="chk"><input type="checkbox" id="tstars"> 只看 ★500+</label>
+        <button class="ghost" id="tgo">检索</button>
+        <span class="hint" id="tcount"></span>
+      </div>
+    </div>
+    <div class="panel"><div class="list" id="tlist"><div class="empty">输入关键词开始检索</div></div></div>
+  </section>
+
+  <!-- 漏洞库 -->
+  <section id="t-vulns" hidden>
+    <div class="panel">
+      <div class="row">
+        <input type="search" id="vq" placeholder="搜漏洞：print spooler / SMB / Exchange / CVE-2021-44228 ...">
+        <input id="vprod" placeholder="产品过滤 (Windows Server 2019)" style="min-width:200px">
+        <button class="act" id="vgo">检索</button>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <label class="chk"><input type="checkbox" id="vkev"> 只看已被真实利用</label>
+        <label class="chk"><input type="checkbox" id="vpoc"> 只看有公开 PoC</label>
+        <select id="vimp"><option value="">全部攻击类型</option>
+          <option>Remote Code Execution</option><option>Elevation of Privilege</option>
+          <option>Memory Corruption</option><option>Information Disclosure</option>
+          <option>Denial of Service</option><option>Security Feature Bypass</option>
+          <option>Spoofing</option><option>Authentication Bypass</option>
+        </select>
+        <select id="vcvss"><option value="">CVSS 不限</option><option value="9">≥9.0</option>
+          <option value="8">≥8.0</option><option value="7">≥7.0</option></select>
+        <select id="vsev"><option value="">严重性不限</option><option>Critical</option>
+          <option>Important</option><option>Moderate</option></select>
+        <span class="hint" id="vcount"></span>
+      </div>
+    </div>
+    <div class="panel"><div class="list" id="vlist"><div class="empty">检索漏洞库</div></div></div>
+  </section>
+
+  <!-- Windows 漏洞 -->
+  <section id="t-win" hidden>
+    <div class="panel">
+      <h3>按 Windows 版本查漏洞 + 补丁</h3>
+      <div class="row">
+        <input id="wbuild" placeholder="内部版本号，如 19045 / 14393 / 26100" style="min-width:280px">
+        <input id="wver" placeholder="或版本名，如 Windows Server 2019" style="min-width:240px">
+        <button class="act" id="wgo">查询</button>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <span class="hint">快捷：</span>
+        <button class="mini" data-b="19045">Win10 22H2</button>
+        <button class="mini" data-b="19044">Win10 21H2</button>
+        <button class="mini" data-b="14393">Server 2016</button>
+        <button class="mini" data-b="17763">Server 2019</button>
+        <button class="mini" data-b="20348">Server 2022</button>
+        <button class="mini" data-b="22631">Win11 23H2</button>
+        <button class="mini" data-b="26100">Win11 24H2 / 2025</button>
+      </div>
+    </div>
+    <div id="wres"></div>
+  </section>
+
+  <!-- 扫描 -->
+  <section id="t-scan" hidden>
+    <div class="panel">
+      <h3>执行工具（输出自动关联漏洞库）</h3>
+      <div class="row">
+        <select id="stool">
+          <option value="nmap-full">nmap 全服务识别 (-sV -sC)</option>
+          <option value="nmap">nmap 快速服务识别 (-sV)</option>
+          <option value="nuclei">nuclei 漏洞扫描</option>
+          <option value="whatweb">whatweb 指纹识别</option>
+          <option value="nikto">nikto Web 扫描</option>
+          <option value="httpx">httpx 探测</option>
+          <option value="gobuster">gobuster 目录爆破</option>
+          <option value="ffuf">ffuf 目录爆破</option>
+        </select>
+        <input id="starget" placeholder="目标：192.168.10.1 / dvwa.local / http://127.0.0.1:8080" style="min-width:300px">
+        <button class="act" id="srun">运行</button>
+        <button class="ghost" id="sstop" disabled>停止</button>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <input id="sargs" placeholder="自定义参数（留空用默认；填了会覆盖上面的默认参数）" style="flex:1;min-width:320px">
+      </div>
+      <div class="hint">只允许自有设备 / 内网靶场 / 授权平台，政府·教育·军方域名会被直接拦下</div>
+    </div>
+    <div class="panel"><h3>输出</h3><pre class="out" id="sout">等待运行…</pre></div>
+    <div id="svuln"></div>
+  </section>
+
+  <!-- 任务 -->
+  <section id="t-jobs" hidden>
+    <div class="panel">
+      <div class="row">
+        <button class="ghost" id="jrefresh">刷新</button>
+        <span class="hint">长任务（全端口扫描等）在容器里后台跑，结果存 /loot/jobs/</span>
+      </div>
+    </div>
+    <div class="panel"><div class="list" id="jlist"><div class="empty">还没有后台任务</div></div></div>
+    <div class="panel" id="joutwrap" hidden><h3>输出</h3><pre class="out" id="jout"></pre></div>
+  </section>
+
+  <!-- 设置 -->
+  <section id="t-settings" hidden>
+    <div class="panel">
+      <h3>容器</h3>
+      <div class="row">
+        <button class="act" id="cstart">启动容器</button>
+        <button class="ghost" id="cstop">停止容器</button>
+        <span class="hint">镜像 secforge/kali:standard · 带 NET_ADMIN/NET_RAW</span>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>镜像</h3>
+      <div class="row">
+        <button class="ghost" data-p="core">重建 core（小）</button>
+        <button class="ghost" data-p="standard">重建 standard</button>
+        <button class="ghost" data-p="full">重建 full（全家桶）</button>
+        <button class="mini" id="imglog">看构建日志</button>
+      </div>
+      <div class="hint">重建很慢（20-40 分钟），后台跑，日志写 /tmp/secforge_build.log</div>
+      <pre class="out" id="imgout" style="margin-top:12px;max-height:200px" hidden></pre>
+    </div>
+    <div class="panel">
+      <h3>AI 接入（MCP）</h3>
+      <pre class="out" id="mcpcfg">加载中…</pre>
+      <div class="row" style="margin-top:10px">
+        <button class="mini" id="mcpcopy">复制配置</button>
+        <span class="hint">已注册在 Hermes 的 ~/.hermes/config.yaml，重启 Hermes 后 AI 就能直接调动这 22 个工具</span>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>PentAGI 多智能体平台</h3>
+      <div class="row">
+        <button class="ghost" onclick="window.open('https://localhost:8443','_blank')">打开 Web UI</button>
+        <span class="hint">~/pentagi · 默认账号 admin@pentagi.com / admin</span>
+      </div>
+    </div>
+  </section>
+</div>
+<div id="toast"></div>
+
+<script>
+const $=(s)=>document.querySelector(s), $$=(s)=>[...document.querySelectorAll(s)];
+const esc=(s)=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('on'),1600);}
+async function get(u){const r=await fetch(u);return r.json();}
+async function post(u,b){const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});return r.json();}
+function copy(t){navigator.clipboard.writeText(t).then(()=>toast('已复制'),()=>toast('复制失败'));}
+
+/* ── 标签切换 ── */
+$$('#nav button').forEach(b=>b.onclick=()=>{
+  $$('#nav button').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+  $$('#app section').forEach(s=>s.hidden=true);
+  const t=b.dataset.t; $('#t-'+t).hidden=false;
+  if(t==='overview')loadOverview(); if(t==='jobs')loadJobs();
+  if(t==='settings')loadSettings();
+});
+
+/* ── 总览 ── */
+async function loadOverview(){
+  const d=await get('/api/overview');
+  $('#ovGrid').innerHTML=`
+    <div class="stat g"><div class="n">${(d.tools||0).toLocaleString()}</div><div class="l">真工具（已过滤噪音）</div></div>
+    <div class="stat"><div class="n">${(d.tools_raw||0).toLocaleString()}</div><div class="l">爬取原始仓库</div></div>
+    <div class="stat"><div class="n">${(d.cves||0).toLocaleString()}</div><div class="l">漏洞库 CVE</div></div>
+    <div class="stat r"><div class="n">${(d.kev||0).toLocaleString()}</div><div class="l">已被真实利用</div></div>
+    <div class="stat o"><div class="n">${(d.poc||0).toLocaleString()}</div><div class="l">有公开 PoC</div></div>
+    <div class="stat"><div class="n">${(d.critical||0).toLocaleString()}</div><div class="l">CVSS ≥ 9</div></div>`;
+  $('#ovEnv').innerHTML=
+    `镜像　<b>${esc(d.image||'无')}</b><br>`+
+    `容器　${d.container?'<span style="color:var(--green)">● 运行中</span>':'<span style="color:var(--red)">○ 未运行</span>'} ${esc(d.container_status||'')}<br>`+
+    `PentAGI　${d.pentagi?'<span style="color:var(--green)">● 运行中</span>':'○ 未运行'}<br>`+
+    `漏洞库更新　${d.last_update? esc(d.last_update.ts)+` <span style="color:var(--dim)">(新增 ${d.last_update.added} 条 · 更新 ${d.last_update.updated} 条 · ${d.last_update.seconds}s · 每天 09:00 自动跑)</span>`:'<span style="color:var(--amber)">还没跑过增量更新</span>'}<br>`+
+    `有 CVSS 的 CVE　${(d.with_cvss||0).toLocaleString()} / ${(d.cves||0).toLocaleString()}`;
+  $('#pills').innerHTML=
+    `<div class="pill">工具库 <b>${(d.tools||0).toLocaleString()}</b></div>`+
+    `<div class="pill">漏洞库 <b>${(d.cves||0).toLocaleString()}</b></div>`+
+    `<div class="pill">容器 <b class="${d.container?'ok':'off'}">${d.container?'运行中':'未运行'}</b></div>`;
+}
+
+/* ── 工具库 ── */
+async function loadCats(){
+  const c=await get('/api/categories');
+  $('#tcat').innerHTML='<option value="">全部分类</option>'+c.map(x=>`<option>${esc(x.category)}</option>`).join('');
+  // 工具下拉的分类
+}
+async function loadTools(){
+  const u=new URLSearchParams({q:$('#tq').value,cat:$('#tcat').value,kind:$('#tkind').value,
+    sort:$('#tsort').value,limit:60});
+  if($('#tstars').checked)u.set('min_stars',500);
+  $('#tcount').innerHTML='<span class="spin"></span>检索中';
+  const d=await get('/api/tools?'+u);
+  $('#tcount').textContent=`命中 ${d.total.toLocaleString()} 个，显示前 ${d.rows.length}`;
+  $('#tlist').innerHTML = d.rows.length? d.rows.map(r=>`
+    <div class="item" onclick="toggle(this)">
+      <div class="t"><span class="nm">${esc(r.name)}</span>
+        <span class="st">★${r.stars.toLocaleString()}</span>
+        <span class="tag g">${esc(r.category)}</span>
+        <span class="tag">${esc(r.language||'—')}</span>
+        <span class="tag ${r.install_method==='apt'?'o':''}">${esc(r.install_method)}</span>
+        ${r.archived?'<span class="tag r">已归档</span>':''}
+      </div>
+      <div class="d">${esc((r.description||'').slice(0,170))}</div>
+      <div class="det" hidden>
+        <div class="kv">
+          <span>仓库</span><span class="mono">${esc(r.full_name)}</span>
+          <span>安装方式</span><span class="mono">${esc(r.install_method)}</span>
+          <span>安装配方</span><span class="mono">${esc(r.install_spec||'—')}</span>
+          <span>最近更新</span><span class="mono">${esc(r.pushed_at||'—')}</span>
+          <span>地址</span><span class="mono">${esc(r.url)}</span>
+        </div>
+        <div class="cmdline"><code>sec_install_tool('${esc(r.name)}')</code>
+          <button class="mini" onclick="event.stopPropagation();copy(\"sec_install_tool('${esc(r.name)}')\")">复制</button></div>
+      </div>
+    </div>`).join('') : '<div class="empty">没有匹配的工具</div>';
+}
+function toggle(el){const d=el.querySelector('.det'); if(d) d.hidden=!d.hidden;}
+
+/* ── 漏洞库 ── */
+function vulnItem(r,openable=true){
+  const tags=[
+    r.kev?'<span class="tag r">🔥 已被真实利用</span>':'',
+    r.poc?'<span class="tag o">💥 公开 PoC</span>':'',
+    r.cvss?`<span class="tag ${r.cvss>=9?'r':''}">CVSS ${r.cvss}</span>`:'',
+    r.severity?`<span class="tag g">${esc(r.severity)}</span>`:'',
+    r.impact?`<span class="tag o">${esc(r.impact)}</span>`:''
+  ].join('');
+  return `<div class="item" ${openable?'onclick="vulnDet(this,\''+esc(r.cve_id)+'\')"':''}>
+    <div class="t"><span class="nm mono">${esc(r.cve_id)}</span>${tags}
+      <span class="st">${esc((r.published||'').slice(0,7))}</span></div>
+    <div class="d">${esc(r.title||'')}</div>
+    ${r.affected?`<div class="d" style="opacity:.75">影响：${esc(String(r.affected).slice(0,190))}</div>`:''}
+    <div class="det" hidden></div></div>`;
+}
+async function vulnDet(el,cid){
+  const d=el.querySelector('.det');
+  if(!d.hidden){d.hidden=true;return;}
+  if(!d.innerHTML){d.innerHTML='<span class="spin"></span>加载中';}
+  d.hidden=false;
+  const v=await get('/api/vuln?id='+encodeURIComponent(cid));
+  if(v.error){d.innerHTML=esc(v.error);return;}
+  d.innerHTML=`<div class="kv">
+      <span>描述</span><span>${esc((v.description||v.title||'').slice(0,700))}</span>
+      <span>补丁</span><span class="mono">${esc(v.kbs||'—')} ${v.patch_url?'· '+esc(v.patch_url):''}</span>
+      <span>可利用性</span><span>${esc(v.exploit_status||'—')}</span>
+      <span>PoC</span><span class="mono">${esc((v.poc_refs||'—').slice(0,300))}</span>
+      <span>数据源</span><span class="mono">${esc(v.sources||'')}</span>
+    </div>
+    ${v.products&&v.products.length?`<div style="color:var(--dim);font-size:12px;margin-bottom:4px">受影响产品 (${v.products.length})：</div>
+      <div class="mono" style="font-size:12px;max-height:150px;overflow:auto">${v.products.map(p=>esc(p.product)+(p.kb?' <span style="color:var(--orange)">['+esc(p.kb)+']</span>':'')).join('<br>')}</div>`:''}`;
+}
+async function loadVulns(){
+  const u=new URLSearchParams({q:$('#vq').value,product:$('#vprod').value,impact:$('#vimp').value,
+    sev:$('#vsev').value,min_cvss:$('#vcvss').value,limit:50});
+  if($('#vkev').checked)u.set('kev',1);
+  if($('#vpoc').checked)u.set('poc',1);
+  $('#vcount').innerHTML='<span class="spin"></span>检索中';
+  const d=await get('/api/vulns?'+u);
+  $('#vcount').textContent=`命中 ${d.total.toLocaleString()} 条，显示前 ${d.rows.length}`;
+  $('#vlist').innerHTML = d.rows.length? d.rows.map(r=>vulnItem(r)).join('') : '<div class="empty">没有匹配</div>';
+}
+
+/* ── Windows ── */
+async function loadWin(build,ver){
+  if(build!==undefined){$('#wbuild').value=build||'';$('#wver').value=ver||'';}
+  const u=new URLSearchParams({build:$('#wbuild').value,version:$('#wver').value});
+  $('#wres').innerHTML='<div class="panel"><span class="spin"></span>查询中…</div>';
+  const d=await get('/api/win?'+u);
+  if(d.error){$('#wres').innerHTML=`<div class="panel"><div class="empty">${esc(d.error)}</div></div>`;return;}
+  $('#wres').innerHTML=`
+    <div class="panel">
+      <div class="row">
+        <div class="stat r" style="flex:1"><div class="n">${d.critical.length}</div><div class="l">必须先修（已被利用 / CVSS≥8 / Critical）</div></div>
+        <div class="stat" style="flex:1"><div class="n">${d.total.toLocaleString()}</div><div class="l">库内命中 CVE 总数</div></div>
+        <div class="stat o" style="flex:1"><div class="n">${d.kbs.length}</div><div class="l">相关补丁 KB</div></div>
+      </div>
+      <div class="hint" style="margin-top:12px">版本：${esc(d.version||'—')} · 内部版本 ${esc(d.build||'—')}</div>
+      ${d.kbs.length?`<div class="cmdline"><code>${esc(d.kbs.slice(0,40).join(' '))}</code>
+        <button class="mini" onclick="copy('${esc(d.kbs.join(' '))}')">复制全部 KB</button></div>`:''}
+    </div>
+    <div class="panel"><h3>必须先修的</h3><div class="list">
+      ${d.critical.map(r=>vulnItem(r,false)).join('')||'<div class="empty">无</div>'}</div></div>
+    <div class="panel"><h3>最近 40 个</h3><div class="list">
+      ${d.recent.map(r=>vulnItem(r,false)).join('')}</div></div>`;
+}
+
+/* ── 扫描（SSE） ── */
+let ev=null;
+function runScan(){
+  const tool=$('#stool').value,target=$('#starget').value.trim(),args=$('#sargs').value.trim();
+  if(!target&&!args){toast('先填目标');return;}
+  const out=$('#sout');out.textContent='';
+  $('#svuln').innerHTML='';
+  $('#srun').disabled=true;$('#sstop').disabled=false;
+  const u=new URLSearchParams({tool,target,args});
+  ev=new EventSource('/api/run?'+u);
+  ev.onmessage=(e)=>{
+    const m=JSON.parse(e.data);
+    if(m.type==='out'){out.textContent+=m.text+'\n';out.scrollTop=out.scrollHeight;}
+    else if(m.type==='cmd'){out.textContent+='$ '+m.text+'\n\n';}
+    else if(m.type==='error'){out.textContent+='⛔ '+m.text+'\n';}
+    else if(m.type==='vuln'){
+      $('#svuln').innerHTML=`<div class="panel vulnbox"><h4>漏洞库自动关联</h4><pre>${esc(m.text)}</pre></div>`;
+    }
+    else if(m.type==='done'){
+      ev.close();ev=null;$('#srun').disabled=false;$('#sstop').disabled=true;
+      if(m.code!==0)out.textContent+=`\n[退出码 ${m.code}]`;
+      $('#svuln').scrollIntoView({behavior:'smooth',block:'nearest'});
+    }
+  };
+  ev.onerror=()=>{if(ev){ev.close();ev=null;}$('#srun').disabled=false;$('#sstop').disabled=true;};
+}
+function stopScan(){if(ev){ev.close();ev=null;toast('已停止');}$('#srun').disabled=false;$('#sstop').disabled=true;}
+
+/* ── 任务 ── */
+async function loadJobs(){
+  const d=await get('/api/jobs');
+  $('#jlist').innerHTML = d.rows.length? d.rows.map(j=>`
+    <div class="item" onclick="jobOut('${esc(j.jid)}')">
+      <div class="t"><span class="nm mono">${esc(j.jid)}</span>
+        <span class="tag ${j.state==='运行中'?'g':''}">${j.state}</span>
+        <span class="st">${j.lines} 行</span></div>
+    </div>`).join('') : '<div class="empty">还没有后台任务</div>';
+}
+async function jobOut(jid){
+  const d=await get('/api/job_output?id='+encodeURIComponent(jid));
+  $('#joutwrap').hidden=false;$('#jout').textContent=d.text||'（空）';
+}
+
+/* ── 设置 ── */
+async function loadSettings(){
+  const d=await get('/api/image_status');
+  $('#imgout').hidden=false;$('#imgout').textContent=d.text;
+}
+async function ctrl(action){
+  toast(action==='start'?'启动中…':'停止中…');
+  const r=await post('/api/container',{action});
+  toast(action==='start'?'已启动':'已停止');
+  $('#imgout').hidden=false;$('#imgout').textContent=r.text;loadOverview();
+}
+
+/* ── 绑定 ── */
+$('#tgo').onclick=loadTools;
+$('#tq').addEventListener('keydown',e=>{if(e.key==='Enter')loadTools();});
+$('#vgo').onclick=loadVulns;
+$('#vq').addEventListener('keydown',e=>{if(e.key==='Enter')loadVulns();});
+$('#wgo').onclick=()=>loadWin();
+$('#wbuild').addEventListener('keydown',e=>{if(e.key==='Enter')loadWin();});
+$$('#t-win .mini').forEach(b=>b.onclick=()=>loadWin(b.dataset.b,''));
+$('#srun').onclick=runScan;$('#sstop').onclick=stopScan;
+$('#jrefresh').onclick=loadJobs;
+$('#cstart').onclick=()=>ctrl('start');$('#cstop').onclick=()=>ctrl('stop');
+$$('#t-settings .ghost[data-p]').forEach(b=>b.onclick=async()=>{
+  const r=await post('/api/build',{profile:b.dataset.p});
+  toast('已开始后台重建');$('#imgout').hidden=false;$('#imgout').textContent=r.text;
+});
+$('#imglog').onclick=async()=>{
+  const d=await get('/api/buildlog');
+  $('#imgout').hidden=false;$('#imgout').textContent=d.text;
+};
+$('#mcpcopy').onclick=()=>copy(`mcp_servers:\n  secforge:\n    command: "<工具箱路径>/.venv/bin/python"\n    args: ["<工具箱路径>/mcp/server.py"]\n    timeout: 900`);
+$('#mcpcfg').textContent=`注册到 ~/.hermes/config.yaml → mcp_servers.secforge
+command: <工具箱路径>/.venv/bin/python
+args:    <工具箱路径>/mcp/server.py
+工具:    22 个 (sec_run / sec_vuln_* / sec_catalog / sec_job_* ...)`;
+
+/* ── 问 AI ── */
+let chatSession='', chatES=null, chatTimerId=null, chatT0=0, chatCur=null;
+function chatMsg(role,text){
+  const log=$('#chatlog'), d=document.createElement('div');
+  d.className='msg '+role; if(text!==undefined) d.textContent=text;
+  log.appendChild(d); log.scrollTop=log.scrollHeight; return d;
+}
+function chatBusy(on){
+  $('#chatsend').disabled=on; $('#chatstop').disabled=!on;
+  if(on){
+    chatT0=Date.now();
+    chatTimerId=setInterval(()=>{ $('#chattimer').textContent='运行中 '+((Date.now()-chatT0)/1000).toFixed(1)+'s'; },100);
+  } else { clearInterval(chatTimerId); chatTimerId=null; $('#chattimer').textContent=''; }
+}
+function brain(){ return $('#chatbrain').value; }
+function chatSend(){
+  const ta=$('#chatinput'), msg=ta.value.trim();
+  if(!msg){toast('先说点什么');return;}
+  if(chatES){toast('上一条还在跑');return;}
+  const B=brain();
+  chatMsg('u',msg); ta.value='';
+  chatCur=chatMsg('a'); chatCur.innerHTML='<span class="spin"></span>'+(B==='ds'?'DeepSeek 思考中…':'思考中…');
+  let first=true, finished=false, ansBox=null;
+  const dropPH=()=>{ if(first){chatCur.remove();first=false;} };
+  const getAns=()=>{ if(!ansBox){ansBox=chatMsg('a');} return ansBox; };
+  const u=new URLSearchParams({message:msg});
+  if(B==='ds'){ u.set('reset',''); }
+  else { u.set('session',chatSession||''); u.set('yolo',$('#chatyolo').checked?'1':''); }
+  chatES=new EventSource((B==='ds'?'/api/ds?':'/api/chat?')+u);
+  chatBusy(true);
+  chatES.onmessage=(e)=>{
+    const m=JSON.parse(e.data);
+    if(m.type==='start'){
+      $('#chatstate').textContent = B==='ds'
+        ? ('DeepSeek 直连 · '+(m.tools||0)+' 个工具 · 只能动容器')
+        : ((m.session?'续接 '+m.session.slice(0,17):'新对话')+' · Hermes 真身');
+    }
+    else if(m.type==='tool'){ dropPH(); chatMsg('t','→ '+m.text); }
+    else if(m.type==='result'){ chatMsg('r',m.text); }
+    else if(m.type==='out'){
+      if(first){ chatCur.textContent=''; first=false; ansBox=chatCur; }
+      else { ansBox=getAns(); }
+      ansBox.textContent+=m.text;
+      $('#chatlog').scrollTop=$('#chatlog').scrollHeight;
+    }
+    else if(m.type==='error'){ dropPH(); chatMsg('e',m.text); }
+    else if(m.type==='done'){
+      finished=true; chatBusy(false);
+      if(chatES){chatES.close();chatES=null;}
+      if(m.session) chatSession=m.session;
+      $('#chatstate').textContent=(B==='ds'?'DeepSeek':'Hermes')+' · 用时 '+m.seconds+'s';
+      if(first&&chatCur.isConnected){ chatCur.textContent='(没有输出内容)'; }
+    }
+  };
+  chatES.onerror=()=>{
+    if(finished) return;                       // 正常结束时浏览器也会报 error, 忽略
+    if(chatES){chatES.close();chatES=null;}
+    chatBusy(false);
+    if(first&&chatCur.isConnected){chatCur.textContent='连接断了 —— 看 /tmp/secforge_ui.log';}
+  };
+}
+async function chatStop(){
+  const r=await post('/api/chat_stop',{});
+  toast(r.text||'已停止'); chatBusy(false);
+  if(chatES){chatES.close();chatES=null;}
+}
+async function chatNew(){
+  if(brain()==='ds'){
+    try{ await fetch('/api/ds?message=&reset=1'); }catch(e){}
+  } else {
+    chatSession='';
+  }
+  $('#chatlog').innerHTML='<div class="msg s">'+
+    (brain()==='ds'?'DeepSeek 直连：上下文已清空。':'Hermes 真身：新对话，上下文已重置。')+
+    '</div>';
+  $('#chatstate').textContent='新对话';
+}
+$('#chatsend').onclick=chatSend;
+$('#chatstop').onclick=chatStop;
+$('#chatnew').onclick=chatNew;
+$$('#t-chat .chip').forEach(b=>b.onclick=()=>{ $('#chatinput').value=b.dataset.q; chatSend(); });
+$('#chatinput').addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); chatSend(); }
+});
+
+loadOverview();loadCats();
+</script>
+</body>
+</html>
