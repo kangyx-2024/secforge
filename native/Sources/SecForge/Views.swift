@@ -12,6 +12,10 @@ let C_RED    = Color(red: 0.812, green: 0.325, blue: 0.310)
 
 let MONO = Font.system(size: 12, design: .monospaced)
 
+/// 维护者本机标记：仓库根目录存在 .owner 文件时，界面不再显示长篇使用声明。
+/// 注意：只影响「声明显示」—— 护栏（Guard.check）对所有人生效，包括作者本机。
+let IS_OWNER_BUILD = FileManager.default.fileExists(atPath: SF_ROOT + "/.owner")
+
 // ---------------------------------------------------------------- 小零件
 struct Card<Content: View>: View {
     let title: String?
@@ -186,12 +190,14 @@ struct OverviewView: View {
                     }
                 }
 
-                Card("使用声明") {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("仅限合法用途：你自己的资产，或你持有书面授权的目标（渗透测试授权书 / 漏洞赏金 Scope）。")
-                            .font(.system(size: 12.5)).foregroundColor(C_TEXT)
-                        Text("禁止用于任何未授权的系统。政府、教育、军方域名会被直接拦下 —— 这条写死在代码里（sec_run / sec_job_start），换哪个 AI 大脑都绕不过去。\n完整条款：仓库里的 USAGE-POLICY.md")
-                            .font(.system(size: 12.5)).foregroundColor(C_DIM)
+                if !IS_OWNER_BUILD {
+                    Card("使用声明") {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("仅限合法用途：你自己的资产，或你持有书面授权的目标（渗透测试授权书 / 漏洞赏金 Scope）。")
+                                .font(.system(size: 12.5)).foregroundColor(C_TEXT)
+                            Text("禁止用于任何未授权的系统。政府、教育、军方域名会被直接拦下 —— 这条写死在代码里（sec_run / sec_job_start），换哪个 AI 大脑都绕不过去。\n完整条款：仓库里的 USAGE-POLICY.md")
+                                .font(.system(size: 12.5)).foregroundColor(C_DIM)
+                        }
                     }
                 }
             }
@@ -462,7 +468,8 @@ struct ChatView: View {
                     LazyVStack(alignment: .leading, spacing: 8) {
                         if chat.lines.isEmpty {
                             Card {
-                                Text("两个大脑共用同一个工具箱（同一个容器、同一份 59876 条漏洞库）。\nHermes 那个有全权限，危险命令会弹审批；DeepSeek 那个只能动容器，每步工具调用都会显示给你看。\n\n⚠️ 仅限合法用途：你自己的资产，或你持有书面授权的目标。")
+                                Text("两个大脑共用同一个工具箱（同一个容器、同一份 59876 条漏洞库）。\nHermes 那个有全权限，危险命令会弹审批；DeepSeek 那个只能动容器，每步工具调用都会显示给你看。"
+                                     + (IS_OWNER_BUILD ? "" : "\n\n⚠️ 仅限合法用途：你自己的资产，或你持有书面授权的目标。"))
                                     .font(.system(size: 12.5)).foregroundColor(C_DIM)
                             }
                         }
@@ -546,6 +553,12 @@ struct SystemView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
+                if IS_OWNER_BUILD {
+                    Card("维护者模式（仅本机）") {
+                        Text("仓库根目录有 .owner 文件，所以这台机器上的 App 认定为「作者本机」，不再显示使用声明。\n别人 clone 下去装的版本会自动显示完整声明。\n护栏对所有人生效（包括本机）：政府 / 教育 / 军方域名照样被拒。")
+                            .font(.system(size: 12.5)).foregroundColor(C_DIM)
+                    }
+                }
                 Card("Kali 容器") {
                     HStack(spacing: 10) {
                         Circle().fill(store.containerStatus.contains("Up") ? C_GREEN : C_RED).frame(width: 9, height: 9)
