@@ -186,9 +186,13 @@ struct OverviewView: View {
                     }
                 }
 
-                Card("红线") {
-                    Text("只允许打自有设备、内网靶场（DVWA / vulhub / Juice Shop）、授权平台（HTB / THM）。政府、教育、军方域名会被直接拦下 —— 这条写进代码里了，换哪个大脑都绕不过。")
-                        .font(.system(size: 12.5)).foregroundColor(C_DIM)
+                Card("使用声明") {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("仅限合法用途：你自己的资产，或你持有书面授权的目标（渗透测试授权书 / 漏洞赏金 Scope）。")
+                            .font(.system(size: 12.5)).foregroundColor(C_TEXT)
+                        Text("禁止用于任何未授权的系统。政府、教育、军方域名会被直接拦下 —— 这条写死在代码里（sec_run / sec_job_start），换哪个 AI 大脑都绕不过去。\n完整条款：仓库里的 USAGE-POLICY.md")
+                            .font(.system(size: 12.5)).foregroundColor(C_DIM)
+                    }
                 }
             }
             .padding(20)
@@ -458,7 +462,7 @@ struct ChatView: View {
                     LazyVStack(alignment: .leading, spacing: 8) {
                         if chat.lines.isEmpty {
                             Card {
-                                Text("两个大脑共用同一个工具箱（同一个容器、同一份 59876 条漏洞库）。\nHermes 那个有全权限，危险命令会弹审批；DeepSeek 那个只能动容器，每步工具调用都会显示给你看。")
+                                Text("两个大脑共用同一个工具箱（同一个容器、同一份 59876 条漏洞库）。\nHermes 那个有全权限，危险命令会弹审批；DeepSeek 那个只能动容器，每步工具调用都会显示给你看。\n\n⚠️ 仅限合法用途：你自己的资产，或你持有书面授权的目标。")
                                     .font(.system(size: 12.5)).foregroundColor(C_DIM)
                             }
                         }
