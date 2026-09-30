@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# ⚠️ 使用声明：仅供合法的网络安全工作 —— 你自己的资产，或你持有书面授权的目标。
+#    严禁用于任何未授权的系统。相关行为由《刑法》第 285 / 286 条规制。详见 USAGE-POLICY.md
 """SecForge MCP Server
 把 SecForge 的 Kali 容器 + 工具库 暴露成 MCP 工具, 让任意 AI (Hermes/Claude/...) 直接调动。
 
