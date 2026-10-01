@@ -34,7 +34,10 @@ struct SecForgeApp: App {
     private func ensureContainer() {
         DispatchQueue.global().async {
             _ = Shell.run("docker", ["start", CONTAINER], timeout: 120)
-            DispatchQueue.main.async { store.refreshOverview() }
+            DispatchQueue.main.async {
+                store.refreshOverview()
+                runner.checkAvailable()      // 容器起来后再探测工具，下拉框只显示真存在的
+            }
         }
     }
 }

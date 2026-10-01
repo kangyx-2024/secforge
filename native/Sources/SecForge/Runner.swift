@@ -7,11 +7,64 @@ final class Runner: ObservableObject {
     @Published var vulnBlock = ""
     @Published var lastCmd = ""
 
+    /// 下拉框里实际能选的工具（启动时探测容器后过滤，不再靠“我记得装过”）
+    @Published var availableTools: [String] = Runner.tools
+    /// 容器里没有、被隐藏掉的
+    @Published var missingTools: [String] = []
+    /// 探测结果说明，显示在界面上
+    @Published var checkNote = "还没检查"
+
     private var proc: Process?
     private let lock = NSLock()
 
+    /// 菜单（想提供的工具）。实际能不能用由 checkAvailable() 探测。
     static let tools = ["nmap", "nmap-full", "nuclei", "whatweb", "nikto", "httpx",
                         "ffuf", "gobuster", "sqlmap", "wpscan", "dirsearch", "masscan"]
+
+    /// 伪工具名 → 真正要去容器里找的可执行文件名
+    static func probeName(_ t: String) -> String { t == "nmap-full" ? "nmap" : t }
+
+    /// 去容器里逐个 `command -v`，把不存在的从下拉框里摘掉。
+    /// 目的：工具列表跟着容器实际状态走，不会再出现“菜单上有、厨房没有”。
+    func checkAvailable() {
+        checkNote = "检查中…"
+        let names = Array(Set(Runner.tools.map { Runner.probeName($0) })).sorted()
+        let cmd = "for t in \(names.joined(separator: " ")); do "
+                + "command -v \"$t\" >/dev/null 2>&1 || echo \"MISS:$t\"; done"
+        DispatchQueue.global().async {
+            let out = Shell.run("docker", ["exec", CONTAINER, "bash", "-lc", cmd], timeout: 90)
+            let low = out.lowercased()
+            // 容器没起来 / 找不到 docker —— 这时**不要**过滤，否则下拉框会空掉，
+            // 空列表比“菜单多一道菜”更糟。
+            let cantCheck = low.contains("not running") || low.contains("no such container")
+                || low.contains("cannot connect") || out.hasPrefix("[找不到")
+            var missing = Set<String>()
+            for line in out.split(separator: "\n") {
+                let s = line.trimmingCharacters(in: .whitespaces)
+                if s.hasPrefix("MISS:") { missing.insert(String(s.dropFirst(5))) }
+            }
+            DispatchQueue.main.async {
+                if cantCheck {
+                    self.availableTools = Runner.tools
+                    self.missingTools = []
+                    self.checkNote = "没连上容器，列表未过滤（先在「容器与镜像」页启动）"
+                    return
+                }
+                let avail = Runner.tools.filter { !missing.contains(Runner.probeName($0)) }
+                if avail.isEmpty {          // 容器在但一个工具都没有？那八成镜像没建好
+                    self.availableTools = Runner.tools
+                    self.missingTools = []
+                    self.checkNote = "容器里一个工具都没找到，可能镜像没构建好"
+                    return
+                }
+                self.availableTools = avail
+                self.missingTools = Runner.tools.filter { missing.contains(Runner.probeName($0)) }
+                self.checkNote = self.missingTools.isEmpty
+                    ? "\(avail.count) 个工具都在"
+                    : "已隐藏容器里没有的 \(self.missingTools.count) 个：\(self.missingTools.joined(separator: "、"))"
+            }
+        }
+    }
 
     static func defaultArgs(tool: String, target: String) -> String {
         switch tool {

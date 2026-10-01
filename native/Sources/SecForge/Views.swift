@@ -394,22 +394,31 @@ struct ScanView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Card {
-                HStack(spacing: 10) {
-                    Picker("工具", selection: $tool) {
-                        ForEach(Runner.tools, id: \.self) { Text($0).tag($0) }
-                    }.frame(width: 180)
-                    TextField("目标（IP / 域名，例如 192.168.10.1）", text: $target)
-                        .textFieldStyle(.roundedBorder).frame(width: 300)
-                    TextField("参数（留空用默认）", text: $args)
-                        .textFieldStyle(.roundedBorder)
-                    if runner.running {
-                        Button("停止") { runner.stop() }.tint(C_RED)
-                    } else {
-                        Button("开始扫描") { runner.start(tool: tool, args: args, target: target) }
-                            .tint(C_GREEN)
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 10) {
+                        Picker("工具", selection: $tool) {
+                            ForEach(runner.availableTools, id: \.self) { Text($0).tag($0) }
+                        }.frame(width: 180)
+                        TextField("目标（IP / 域名，例如 192.168.10.1）", text: $target)
+                            .textFieldStyle(.roundedBorder).frame(width: 300)
+                        TextField("参数（留空用默认）", text: $args)
+                            .textFieldStyle(.roundedBorder)
+                        if runner.running {
+                            Button("停止") { runner.stop() }.tint(C_RED)
+                        } else {
+                            Button("开始扫描") { runner.start(tool: tool, args: args, target: target) }
+                                .tint(C_GREEN)
+                        }
+                        Button("清空") { runner.clear() }
+                        Button("重新检查") { runner.checkAvailable() }
+                            .help("重新去容器里确认哪些工具真实存在（装完新工具点一下就会出现在下拉框里）")
                     }
-                    Button("清空") { runner.clear() }
+                    Text("ⓘ " + runner.checkNote)
+                        .font(.system(size: 11.5)).foregroundColor(C_DIM)
                 }
+            }
+            .onChange(of: runner.availableTools) { list in
+                if !list.contains(tool), let first = list.first { tool = first }
             }
 
             Card("输出  \(runner.running ? "· 运行中…" : "")") {
