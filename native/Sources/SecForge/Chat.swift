@@ -199,18 +199,15 @@ final class ChatEngine: ObservableObject {
         ChatEngine.fn("sec_vuln_for_windows", "查某个 Windows 版本的漏洞和要打的补丁。version 填显示名（如 \"Windows 10 22H2\"、\"Windows 11 24H2\"、\"Windows Server 2019\"、\"Windows 7 SP1\"），build 填内部版本号（如 19045）。给一个就行。", [
             "version": ["type": "string", "description": "版本名，如 Windows 10 22H2"],
             "build": ["type": "string", "description": "内部版本号，如 19045"]]),
-        ChatEngine.fn("sec_run", "在隔离的 Kali 容器里跑一个安全工具，返回输出。", [
+        ChatEngine.fn("sec_run", "在隔离的 Kali 容器里跑一个安全工具，返回输出。参数会被切成 argv 直接交给工具，不经过 shell。", [
             "tool": ["type": "string", "description": "nmap / nuclei / nikto / whatweb / httpx / ffuf / gobuster / sqlmap"],
             "args": ["type": "string", "description": "传给工具的完整参数，如 -sV -T4 -Pn 192.168.10.1"]]),
-        ChatEngine.fn("sec_shell", "在容器里跑任意 shell 命令（查文件、装工具、看进程）。", [
-            "cmd": ["type": "string", "description": "shell 命令"]]),
     ]
 
     private static func fn(_ name: String, _ desc: String, _ props: [String: Any]) -> [String: Any] {
         var required: [String] = []
         if name == "sec_vuln_detail" { required = ["cve_id"] }
         if name == "sec_run" { required = ["tool", "args"] }
-        if name == "sec_shell" { required = ["cmd"] }
         return ["type": "function", "function": [
             "name": name, "description": desc,
             "parameters": ["type": "object", "properties": props, "required": required]]]
@@ -314,23 +311,49 @@ final class ChatEngine: ObservableObject {
             return s
 
         case "sec_run":
-            let tool = a["tool"] as? String ?? "nmap"
+            let tool = a["tool"] as? String ?? ""
             let args = a["args"] as? String ?? ""
             let target = args.split(separator: " ").last.map(String.init) ?? ""
             let g = Guard.check(target)
             if !g.isEmpty { return g }
+            guard !tool.isEmpty else { return "tool 不能为空" }
+            // 参数切成 argv 以 argv 形式交给容器 —— 不经过 shell。
+            // 参数里的 ; | ` $(...) 只是普通字符，不会被当成命令。
+            let argv = ChatEngine.splitArgs(args)
+            guard !argv.isEmpty else { return "args 不能为空，例如 \"-sV -T4 192.168.10.1\"" }
             guard let docker = whichBin("docker") else { return "找不到 docker" }
-            return Shell.run(docker, ["exec", CONTAINER, "bash", "-lc", "\(tool) \(args) 2>&1"], timeout: 300)
-
-        case "sec_shell":
-            let cmd = a["cmd"] as? String ?? ""
-            guard !cmd.isEmpty else { return "命令为空" }
-            guard let docker = whichBin("docker") else { return "找不到 docker" }
-            return Shell.run(docker, ["exec", CONTAINER, "bash", "-lc", cmd], timeout: 300)
+            return Shell.run(docker, ["exec", CONTAINER, tool] + argv, timeout: 300)
 
         default:
             return "没有这个工具: \(name)"
         }
+    }
+
+    /// 把参数字符串切成 argv。支持单/双引号和反斜杠转义，
+    /// **不认识** ; | & ` $( ) 这些 shell 语法 —— 那正是重点。
+    static func splitArgs(_ s: String) -> [String] {
+        var out: [String] = []
+        var cur = ""
+        var quote: Character? = nil
+        var has = false
+        var esc = false
+        for ch in s {
+            if esc { cur.append(ch); has = true; esc = false; continue }
+            if ch == "\\" && quote != "'" { esc = true; has = true; continue }
+            if let q = quote {
+                if ch == q { quote = nil } else { cur.append(ch) }
+                has = true
+                continue
+            }
+            if ch == "'" || ch == "\"" { quote = ch; has = true; continue }
+            if ch == " " || ch == "\t" || ch == "\n" {
+                if has { out.append(cur); cur = ""; has = false }
+                continue
+            }
+            cur.append(ch); has = true
+        }
+        if has { out.append(cur) }
+        return out
     }
 
     static let systemPrompt = """

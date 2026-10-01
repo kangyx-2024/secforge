@@ -342,7 +342,7 @@ Hermes 那个有全权限（能改你 Mac 上的文件、上网、有记忆）�
       <pre class="out" id="mcpcfg">加载中…</pre>
       <div class="row" style="margin-top:10px">
         <button class="mini" id="mcpcopy">复制配置</button>
-        <span class="hint">已注册在 Hermes 的 ~/.hermes/config.yaml，重启 Hermes 后 AI 就能直接调动这 22 个工具</span>
+        <span class="hint">已注册在 Hermes 的 ~/.hermes/config.yaml，重启 Hermes 后 AI 就能直接调动这 21 个工具</span>
       </div>
     </div>
     <div class="panel">
@@ -579,7 +579,7 @@ $('#mcpcopy').onclick=()=>copy(`mcp_servers:\n  secforge:\n    command: "<工具
 $('#mcpcfg').textContent=`注册到 ~/.hermes/config.yaml → mcp_servers.secforge
 command: <工具箱路径>/.venv/bin/python
 args:    <工具箱路径>/mcp/server.py
-工具:    22 个 (sec_run / sec_vuln_* / sec_catalog / sec_job_* ...)`;
+工具:    21 个 (sec_run / sec_vuln_* / sec_catalog / sec_job_* ...)`;
 
 /* ── 问 AI ── */
 let chatSession='', chatES=null, chatTimerId=null, chatT0=0, chatCur=null;

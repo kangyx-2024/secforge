@@ -4,13 +4,14 @@
 """SecForge 的第二个大脑 —— DeepSeek 直连（不经过 Hermes）
 
 设计要点:
-  · 工具就是 mcp/server.py 里那 22 个 sec_* 函数, 直接当普通 Python 函数调,
+  · 工具就是 mcp/server.py 里那 21 个 sec_* 函数, 直接当普通 Python 函数调,
     不走 MCP 协议(少一层进程, 快)。
   · 工具 schema 从函数签名 + docstring 自动生成, 所以以后给 server.py 加工具,
     这里不用改任何代码。
   · 安全护栏在工具自己身上(sec_run/sec_job_start 里的 guard()), 所以这个大脑
     自动继承同一套红线 —— 政府/教育/军方域名照样会被拒。
-  · 它只能动容器(sec_shell 也是 docker exec 进 secforge), 碰不到宿主机的文件。
+  · 它只能动容器(docker exec 进 secforge), 碰不到宿主机的文件。
+  · 任意 shell(sec_shell) 故意**不暴露**给 AI —— 那是人类用的通道(secforge sh)。
 """
 import inspect
 import json
@@ -27,8 +28,8 @@ MAX_HISTORY = 40          # 保留最近多少条消息(含工具结果), 防止
 
 SYS = """你是 SecForge 工具盒的 AI 操作员（DeepSeek 直连大脑）。
 
-你有 22 个工具，运行在一个隔离的 Kali Linux 容器里，包括：
-跑安全工具（sec_run/sec_job_start/sec_shell）、查 GitHub 安全工具库
+你有 21 个工具，运行在一个隔离的 Kali Linux 容器里，包括：
+跑安全工具（sec_run/sec_job_start）、查 GitHub 安全工具库
 （sec_catalog/sec_tool_info）、查 5 万条漏洞库（sec_vuln_search/sec_vuln_detail/
 sec_vuln_for_windows/sec_vuln_auto）、管理容器和镜像（sec_image_status/
 sec_start_container/sec_build_image）、装新工具（sec_install_tool）。

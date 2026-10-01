@@ -10,12 +10,12 @@
 [![License](https://img.shields.io/badge/license-MIT-4e9a63)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-d97a2b)](#-快速开始)
 [![Python](https://img.shields.io/badge/python-3.11%2B-4e9a63)](#-快速开始)
-[![MCP](https://img.shields.io/badge/MCP-22%20tools-d97a2b)](#-接进-ai-自带-key)
+[![MCP](https://img.shields.io/badge/MCP-21%20tools-d97a2b)](#-接进-ai-自带-key)
 [![Authorized use only](https://img.shields.io/badge/use-authorized%20targets%20only-c0392b)](USAGE-POLICY.md)
 
 <sub>English TL;DR — SecForge is a self-hosted security toolkit: it indexes 5,000+ GitHub
 security tools, ships a 59,000-CVE local database (MSRC + CISA KEV + ExploitDB + NVD),
-builds its own Kali Docker image, exposes 22 MCP tools to any AI agent, and drives
+builds its own Kali Docker image, exposes 21 MCP tools to any AI agent, and drives
 everything from a **native macOS app (Swift/SwiftUI — no Electron, no browser)**.
 Bring your own LLM API key. Authorized targets only.</sub>
 
@@ -68,7 +68,7 @@ AI 自己决定调哪个工具、传什么参数、拿结果去查漏洞库、�
 | 受影响产品条目 | 253,921 | 按产品反查漏洞用 |
 | Windows 版本覆盖 | 27 个 | Win11 各代 / Win10 全分支 / Server / 8.1 / 7 SP1 |
 | Kali 镜像 | 2,091 个包 | 21.3GB，含 Metasploit 2604 个载荷 |
-| MCP 工具 | 22 个 | 任何支持 MCP 的 AI 都能直接用 |
+| MCP 工具 | 21 个 | 任何支持 MCP 的 AI 都能直接用 |
 | 原生 App | 1.2MB | Mach-O arm64 真二进制 |
 
 **Windows 版本能查到什么**（真实输出）：
@@ -241,7 +241,7 @@ secforge/
 │   ├── fill_cvss_nvd.py      补 CVSS / severity / CWE
 │   └── update_daily.py       每日增量
 ├── image/          Dockerfile 生成器 + 镜像构建     → secforge/kali:standard
-├── mcp/            MCP 服务器（22 个工具，stdio）   → 给任何 AI 用
+├── mcp/            MCP 服务器（21 个工具，stdio）   → 给任何 AI 用
 ├── ui/             网页版界面 + DeepSeek 直连大脑
 ├── native/         原生 macOS App（Swift + SwiftUI）
 └── secforge.py     命令行入口

@@ -56,6 +56,13 @@ def guard(target: str) -> str:
     return ""  # 其他域名放行但会在报告里标注"需授权确认"
 
 
+def safe_id(s: str, default: str = "job") -> str:
+    """模型可控的标识符（任务名 / jid / 文件名）拼进 shell 字符串之前必须净化。
+    以 argv 形式传的不用净化；凡是进 shell 字符串的都要。只留字母数字 . _ -"""
+    s = re.sub(r"[^A-Za-z0-9._-]", "_", (s or "").strip())[:60]
+    return s or default
+
+
 def dex(cmd, timeout=300, user=None):
     """docker exec 到 secforge 容器"""
     full = ["docker", "exec"]
@@ -280,6 +287,14 @@ def sec_run(tool: str, args: str = "", target: str = "", timeout: int = 300) -> 
     e = need_up()
     if e:
         return e
+    # 参数按 shell 规则切成 argv 后**以 argv 形式**交给容器 —— 不经过 shell。
+    # 所以参数里的 ; | ` $(...) 只是普通字符，不会被解释成命令。
+    try:
+        argv = shlex.split(args) if args else []
+    except ValueError as ex:
+        return f"参数解析失败（引号不配对）: {ex}\n你给的参数: {args}"
+    if not argv:
+        return '参数为空。args 至少给一个，比如 "-sV -T4 192.168.10.1"。'
     c = catalog_conn()
     spec = ""
     if c:
@@ -287,19 +302,27 @@ def sec_run(tool: str, args: str = "", target: str = "", timeout: int = 300) -> 
                       "WHERE name=? ORDER BY stars DESC LIMIT 1", (tool,)).fetchone()
         if r:
             spec = f"\n[{r['category']}] {r['install_spec']}"
-    out = dex(f"{tool} {args} 2>&1", timeout=timeout)
+    out = dex([tool] + argv, timeout=timeout)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    full_log = f"/loot/runs/{tool}_{stamp}.log"
+    # 日志文件名里含模型给的 tool 名 → 先净化再拼（它要进 shell）
+    safe_tool = re.sub(r"[^A-Za-z0-9._+-]", "_", tool)[:40] or "tool"
+    full_log = f"/loot/runs/{safe_tool}_{stamp}.log"
     if len(out) > 8000:
-        dex(f"mkdir -p /loot/runs && cat > {full_log} <<'SECEOF'\n{out[:200000]}\nSECEOF", 60)
+        tag = "SF_" + uuid.uuid4().hex      # 随机定界符：输出里不可能出现，防止提前收尾
+        dex(f"mkdir -p /loot/runs && cat > {full_log} <<'{tag}'\n{out[:200000]}\n{tag}", 60)
         out = out[:8000] + f"\n...[截断, 全量在 {full_log}]"
     vulns = _vuln_auto_block(out, limit=12)
     return f"$ {tool} {args}{spec}\n{out}\n\n{vulns}"
 
 
-@mcp.tool()
-def sec_shell(command: str, timeout: int = 300) -> str:
-    """在 Kali 容器里跑任意 shell 命令(apt install / 管道 / 脚本 都行)"""
+# 人类专用：不给 AI 暴露（见下面 shell_in_container 的说明）
+def shell_in_container(command: str, timeout: int = 300) -> str:
+    """在容器里跑任意 shell 命令 —— **只给人类用，不暴露给 AI**。
+
+    故意不加 @mcp.tool()，名字也不以 sec_ 开头（这样 DeepSeek 那边的
+    schema 自动生成器扫 sec_* 时会跳过它）。
+    人类要用就直接：secforge sh  或  docker exec -it secforge bash
+    """
     e = need_up()
     if e:
         return e
@@ -315,7 +338,7 @@ def sec_job_start(name: str, command: str, target: str = "") -> str:
     e = need_up()
     if e:
         return e
-    jid = f"{name}_{uuid.uuid4().hex[:6]}"
+    jid = f"{safe_id(name, 'task')}_{uuid.uuid4().hex[:6]}"
     dex(f"mkdir -p /loot/jobs && nohup bash -c '{command.replace(chr(39), chr(39)+chr(92)+chr(39)+chr(39))}' "
         f"> /loot/jobs/{jid}.log 2>&1 & echo $! > /loot/jobs/{jid}.pid", 60)
     return f"任务 {jid} 已启动。用 sec_job_status('{jid}') 看进度, sec_job_output('{jid}') 看输出。"
@@ -329,8 +352,8 @@ def sec_job_status(jid: str = "") -> str:
         return e
     if not jid:
         return dex("ls -la /loot/jobs/ 2>/dev/null | head -40", 60)
-    alive = dex(f"kill -0 $(cat /loot/jobs/{jid}.pid) 2>/dev/null && echo RUNNING || echo DONE", 30).strip()
-    size = dex(f"wc -l /loot/jobs/{jid}.log 2>/dev/null", 30).strip()
+    alive = dex(f"kill -0 $(cat /loot/jobs/{safe_id(jid)}.pid) 2>/dev/null && echo RUNNING || echo DONE", 30).strip()
+    size = dex(f"wc -l /loot/jobs/{safe_id(jid)}.log 2>/dev/null", 30).strip()
     return f"{jid}: {alive}  {size}"
 
 
@@ -340,7 +363,7 @@ def sec_job_output(jid: str, lines: int = 100) -> str:
     e = need_up()
     if e:
         return e
-    return dex(f"tail -n {int(lines)} /loot/jobs/{jid}.log 2>/dev/null", 60)
+    return dex(f"tail -n {int(lines)} /loot/jobs/{safe_id(jid)}.log 2>/dev/null", 60)
 
 
 @mcp.tool()
