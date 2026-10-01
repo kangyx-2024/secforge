@@ -360,8 +360,11 @@ Hermes 那个有全权限（能改你 Mac 上的文件、上网、有记忆）�
 const $=(s)=>document.querySelector(s), $$=(s)=>[...document.querySelectorAll(s)];
 const esc=(s)=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('on'),1600);}
-async function get(u){const r=await fetch(u);return r.json();}
-async function post(u,b){const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});return r.json();}
+const TOKEN='__SECFORGE_TOKEN__';          /* 服务端每次启动注入的本轮令牌 */
+const TK={'X-SecForge-Token':TOKEN};
+function tok(u){return u+(u.includes('?')?'&':'?')+'token='+encodeURIComponent(TOKEN);}  /* EventSource 不能带请求头，只能放 query */
+async function get(u){const r=await fetch(u,{headers:TK});return r.json();}
+async function post(u,b){const r=await fetch(u,{method:'POST',headers:Object.assign({'Content-Type':'application/json'},TK),body:JSON.stringify(b||{})});return r.json();}
 function copy(t){navigator.clipboard.writeText(t).then(()=>toast('已复制'),()=>toast('复制失败'));}
 
 /* ── 标签切换 ── */
@@ -510,7 +513,7 @@ function runScan(){
   $('#svuln').innerHTML='';
   $('#srun').disabled=true;$('#sstop').disabled=false;
   const u=new URLSearchParams({tool,target,args});
-  ev=new EventSource('/api/run?'+u);
+  ev=new EventSource(tok('/api/run?'+u));
   ev.onmessage=(e)=>{
     const m=JSON.parse(e.data);
     if(m.type==='out'){out.textContent+=m.text+'\n';out.scrollTop=out.scrollHeight;}
@@ -609,7 +612,7 @@ function chatSend(){
   const u=new URLSearchParams({message:msg});
   if(B==='ds'){ u.set('reset',''); }
   else { u.set('session',chatSession||''); u.set('yolo',$('#chatyolo').checked?'1':''); }
-  chatES=new EventSource((B==='ds'?'/api/ds?':'/api/chat?')+u);
+  chatES=new EventSource(tok((B==='ds'?'/api/ds?':'/api/chat?')+u));
   chatBusy(true);
   chatES.onmessage=(e)=>{
     const m=JSON.parse(e.data);
@@ -649,7 +652,7 @@ async function chatStop(){
 }
 async function chatNew(){
   if(brain()==='ds'){
-    try{ await fetch('/api/ds?message=&reset=1'); }catch(e){}
+    try{ await fetch(tok('/api/ds?message=&reset=1'),{headers:TK}); }catch(e){}
   } else {
     chatSession='';
   }

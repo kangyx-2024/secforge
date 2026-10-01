@@ -25,6 +25,8 @@ import re
 import shutil
 import sqlite3
 import subprocess
+import hmac
+import secrets
 import sys
 import threading
 import time
@@ -51,6 +53,16 @@ srv = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(srv)
 
 PORT = int(os.environ.get("SECFORGE_PORT", "8787"))
+
+# ---------------------------------------------------------------- 本机访问防护
+# 目的：别人不能借你的浏览器来操纵这个工具（CSRF / DNS rebinding）。
+#   · Host 头必须是本机   —— 干掉 DNS rebinding（rebinding 请求带的是攻击者域名的 Host）
+#   · 每个 /api/* 都要带本轮启动生成的随机令牌 —— 干掉跨站盲发（对方读不到你页面里的令牌）
+#   · 顺带拒掉 Origin 不对 / Sec-Fetch-Site: cross-site 的请求
+# 令牌每次启动都换，写在内存里，不落盘。
+API_TOKEN = secrets.token_urlsafe(24)
+ALLOWED_HOSTS = {f"127.0.0.1:{PORT}", f"localhost:{PORT}", f"[::1]:{PORT}"}
+ALLOWED_ORIGINS = {f"http://{h}" for h in ALLOWED_HOSTS}
 
 
 def rows(cur, limit=None):
@@ -441,6 +453,29 @@ class H(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
+    def _local_guard(self, u, p):
+        """返回空串 = 放行；否则返回拒绝原因。
+        所有请求都过 Host 检查；/api/* 还要通过令牌检查。"""
+        host = (self.headers.get("Host") or "").strip().lower()
+        if host not in ALLOWED_HOSTS:
+            return (f"Host 头不允许: {host or '(空)'}。只接受本机直连"
+                    f"（这通常意味着 DNS rebinding 或中间有代理）")
+        origin = (self.headers.get("Origin") or "").strip().lower()
+        if origin and origin not in ALLOWED_ORIGINS:
+            return f"Origin 不允许: {origin}"
+        if (self.headers.get("Sec-Fetch-Site") or "").strip().lower() == "cross-site":
+            return "跨站请求被拒（Sec-Fetch-Site: cross-site）"
+        if not u.path.startswith("/api/"):
+            return ""
+        tok = p.get("token") or self.headers.get("X-SecForge-Token") or ""
+        try:
+            ok = hmac.compare_digest(str(tok).encode(), API_TOKEN.encode())
+        except Exception:
+            ok = False
+        if not ok:
+            return "缺少或错误的访问令牌（请从 http://127.0.0.1:8787 打开界面）"
+        return ""
+
     def _send(self, obj, code=200, ctype="application/json; charset=utf-8"):
         b = obj if isinstance(obj, bytes) else json.dumps(obj, ensure_ascii=False).encode()
         self.send_response(code)
@@ -453,10 +488,15 @@ class H(BaseHTTPRequestHandler):
     def do_GET(self):
         u = urlparse(self.path)
         p = {k: v[0] for k, v in parse_qs(u.query).items()}
+        why = self._local_guard(u, p)
+        if why:
+            return self._send({"error": why}, 403)
         try:
             if u.path in ("/", "/index.html"):
-                return self._send(open(os.path.join(HERE, "index.html"), "rb").read(),
-                                  ctype="text/html; charset=utf-8")
+                html = open(os.path.join(HERE, "index.html"), "rb").read()
+                # 把本轮令牌注入页面；跨站页面读不到这个响应（拿不到令牌）
+                html = html.replace(b"__SECFORGE_TOKEN__", API_TOKEN.encode())
+                return self._send(html, ctype="text/html; charset=utf-8")
             if u.path == "/api/overview":
                 return self._send(api_overview())
             if u.path == "/api/tools":
@@ -537,6 +577,9 @@ class H(BaseHTTPRequestHandler):
             p = json.loads(self.rfile.read(n) or b"{}")
         except Exception:
             p = {}
+        why = self._local_guard(u, p)
+        if why:
+            return self._send({"error": why}, 403)
         if u.path == "/api/container":
             act = p.get("action")
             if act == "start":
