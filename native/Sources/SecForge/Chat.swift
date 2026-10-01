@@ -199,7 +199,7 @@ final class ChatEngine: ObservableObject {
         ChatEngine.fn("sec_vuln_for_windows", "查某个 Windows 版本的漏洞和要打的补丁。version 填显示名（如 \"Windows 10 22H2\"、\"Windows 11 24H2\"、\"Windows Server 2019\"、\"Windows 7 SP1\"），build 填内部版本号（如 19045）。给一个就行。", [
             "version": ["type": "string", "description": "版本名，如 Windows 10 22H2"],
             "build": ["type": "string", "description": "内部版本号，如 19045"]]),
-        ChatEngine.fn("sec_run", "在隔离的 Kali 容器里跑一个安全工具，返回输出。参数会被切成 argv 直接交给工具，不经过 shell。", [
+        ChatEngine.fn("sec_run", "在隔离的 Kali 容器里跑一个安全工具，返回输出。参数会被切成 argv 直接交给工具，不经过 shell。工具名有白名单：必须是容器里真实存在的安全工具（nmap/nuclei/sqlmap/ffuf/gobuster/nikto/hydra/whatweb 等），sh/bash/python/curl 这类通用命令会被拒绝 —— 要跑任意命令请人类用 secforge sh。", [
             "tool": ["type": "string", "description": "nmap / nuclei / nikto / whatweb / httpx / ffuf / gobuster / sqlmap"],
             "args": ["type": "string", "description": "传给工具的完整参数，如 -sV -T4 -Pn 192.168.10.1"]]),
     ]
@@ -214,6 +214,57 @@ final class ChatEngine: ObservableObject {
     }
 
     // ------------------------------------------------------------ 工具执行（原生实现，不经过任何网页服务）
+    // MARK: - 工具名白名单（和 mcp/server.py 的 _check_tool 保持一致）
+    //
+    // argv 化只挡了"字符意外注入"；AI 直接把 tool 填成 bash 照样是任意命令执行，
+    // 因为根本不需要 shell 字符。所以工具名必须是容器里真实存在的安全工具。
+    // 诚实边界：nmap --script / sqlmap --os-shell / msfconsole -x 本身就是命令引擎，
+    // 那是设计功能；这道关挡的是"最省事的那条路"——直接叫 sh/bash/python/curl。
+
+    static let genericExec: Set<String> = [
+        "sh", "bash", "zsh", "dash", "ksh", "csh", "tcsh", "fish", "ash", "busybox",
+        "python", "python2", "python3", "perl", "ruby", "node", "nodejs", "php",
+        "lua", "tclsh", "awk", "gawk", "mawk", "sed", "expect", "script",
+        "env", "xargs", "eval", "exec", "nohup", "setsid", "timeout", "watch", "stdbuf",
+        "curl", "wget", "git", "svn", "hg", "aria2c", "rsync", "scp", "sftp",
+        "ssh", "telnet", "openvpn", "nc", "ncat", "netcat", "socat",
+        "cat", "tee", "cp", "mv", "rm", "ln", "chmod", "chown", "touch", "truncate",
+        "dd", "tar", "split", "shred", "install", "mktemp", "mkfifo", "cpio",
+        "docker", "podman", "kubectl", "nsenter", "chroot", "unshare",
+        "mount", "umount", "sudo", "su", "login", "runuser", "setpriv",
+        "make", "gcc", "cc", "clang", "g++", "go", "rustc", "cargo", "npm", "yarn",
+        "pip", "pip3", "apt", "apt-get", "dpkg", "gem",
+        "at", "crontab", "systemctl", "service", "init", "kill", "pkill", "killall",
+        "vi", "vim", "nvim", "nano", "emacs", "ed", "less", "more", "man", "screen", "tmux",
+    ]
+
+    /// 校验 AI 给的工具名。nil = 通过；否则返回拒绝原因。
+    /// 三道关：① 名字形态 ② 不是通用执行器 ③ 容器里真存在
+    static func checkTool(_ tool: String) -> String? {
+        let t = tool.trimmingCharacters(in: .whitespacesAndNewlines)
+        if t.isEmpty { return "工具名为空。" }
+        if t.range(of: "^[A-Za-z][A-Za-z0-9._+-]{0,63}$", options: .regularExpression) == nil {
+            return "工具名不合法: \(t) —— 这里只能给「工具名」，不能给一整串命令。"
+                + "只允许字母开头、由字母数字和 . _ + - 组成。"
+        }
+        let base = (t.split(separator: "/").last.map(String.init) ?? t).lowercased()
+        if genericExec.contains(base) {
+            return "\(base) 是通用命令 / 解释器 / 下载器，不属于安全工具，AI 不能通过 sec_run 调它。\n"
+                + "  要跑扫描: nmap / nuclei / sqlmap / ffuf / gobuster / nikto / hydra / whatweb\n"
+                + "  要跑任意命令: 这一步留给人类 —— secforge sh，或 docker exec -it secforge bash"
+        }
+        // 容器里真有这个可执行文件吗（名字已过严格字符集，拼进 sh -c 是安全的）
+        guard let docker = whichBin("docker") else { return "找不到 docker" }
+        let r = Shell.run(docker,
+                          ["exec", CONTAINER, "sh", "-c",
+                           "command -v \(t) >/dev/null 2>&1 && echo __YES__ || echo __NO__"],
+                          timeout: 30)
+        if !r.contains("__YES__") {
+            return "容器里没有 '\(t)'。用 sec_catalog 找一个真正存在的工具，或用 sec_install_tool 先装上。"
+        }
+        return nil
+    }
+
     static func execTool(_ name: String, _ a: [String: Any], db: SQLiteDB?) -> String {
         let cat = SQLiteDB(CATALOG_DB)
         switch name {
@@ -317,6 +368,8 @@ final class ChatEngine: ObservableObject {
             let g = Guard.check(target)
             if !g.isEmpty { return g }
             guard !tool.isEmpty else { return "tool 不能为空" }
+            // 工具名白名单：AI 只能调容器里真实存在的安全工具，不能直接叫 bash。
+            if let why = ChatEngine.checkTool(tool) { return why }
             // 参数切成 argv 以 argv 形式交给容器 —— 不经过 shell。
             // 参数里的 ; | ` $(...) 只是普通字符，不会被当成命令。
             let argv = ChatEngine.splitArgs(args)

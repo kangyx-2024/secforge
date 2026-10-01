@@ -78,6 +78,118 @@ def dex(cmd, timeout=300, user=None):
         return "[错误] 找不到 docker"
 
 
+# ---------------------------------------------------------------- 工具调用护栏
+# 背景：上次只把 sec_run 的 args 做了 argv 化（防"字符意外注入"），但 tool 参数
+# 本身没有任何限制 —— AI 传 tool="bash"、args="-c '任意命令'"，一个 shell 字符
+# 都不需要，照样是容器内任意命令执行。sec_job_start 的 command 更是直接给 bash -c。
+#
+# 所以给"AI 能调什么工具"定三道关：
+#   ① 名字形态      —— 严格字符集，堵住把一整串命令塞进 tool 的写法
+#   ② 不是通用执行器 —— sh/bash/python/curl/... 这些能执行代码或搬运文件，不属于安全工具
+#   ③ 容器里真存在   —— 只允许调容器里实际装了的可执行文件
+#
+# 诚实边界：这不等于"AI 绝对不可能在容器里执行任意代码"。nmap --script、
+# sqlmap --os-shell、msfconsole -x、nuclei -t 自定义模板，本身就是命令执行引擎 ——
+# 那是它们的设计功能，不是绕过。这道护栏挡住的是"最省事的那条路"：
+# 直接叫 sh / bash / python / curl 去干活。
+# 要跑任意命令的通道保留给人类：secforge sh  或  docker exec -it secforge bash
+
+TOOL_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9._+-]{0,63}$")
+
+# shell 元字符（用 chr() 拼，源码里不出现转义字符）
+SHELL_META_CHARS = ";&|<>`$()" + chr(92) + chr(10) + chr(13)
+
+GENERIC_EXEC = {
+    # shell / 解释器
+    "sh", "bash", "zsh", "dash", "ksh", "csh", "tcsh", "fish", "ash", "busybox",
+    "python", "python2", "python3", "perl", "ruby", "node", "nodejs", "php",
+    "lua", "tclsh", "awk", "gawk", "mawk", "sed", "expect", "script",
+    # 通用命令包装
+    "env", "xargs", "eval", "exec", "nohup", "setsid", "timeout", "watch", "stdbuf",
+    # 网络下载 / 传输
+    "curl", "wget", "git", "svn", "hg", "aria2c", "rsync", "scp", "sftp",
+    "ssh", "telnet", "openvpn", "nc", "ncat", "netcat", "socat",
+    # 文件操作
+    "cat", "tee", "cp", "mv", "rm", "ln", "chmod", "chown", "touch", "truncate",
+    "dd", "tar", "split", "shred", "install", "mktemp", "mkfifo", "cpio",
+    # 容器 / 挂载 / 提权
+    "docker", "podman", "kubectl", "nsenter", "chroot", "unshare",
+    "mount", "umount", "sudo", "su", "login", "runuser", "setpriv",
+    # 编译 / 包管理
+    "make", "gcc", "cc", "clang", "g++", "go", "rustc", "cargo", "npm", "yarn",
+    "pip", "pip3", "apt", "apt-get", "dpkg", "gem",
+    # 计划任务 / 进程 / 编辑器
+    "at", "crontab", "systemctl", "service", "init", "kill", "pkill", "killall",
+    "vi", "vim", "nvim", "nano", "emacs", "ed", "less", "more", "man",
+    "screen", "tmux",
+}
+
+_WHICH_CACHE = {}
+
+
+def _first_meta(s: str) -> str:
+    """返回 s 里出现的第一个 shell 元字符；没有则空串。"""
+    for ch in (s or ""):
+        if ch in SHELL_META_CHARS:
+            return ch
+    return ""
+
+
+def _check_name(tool: str) -> str:
+    """只查名字形态（不碰容器）。返回拒绝原因，空串=通过。"""
+    t = (tool or "").strip()
+    if not t:
+        return "工具名为空。"
+    if not TOOL_NAME_RE.match(t):
+        return (f"工具名不合法: {tool!r} —— 这里只能给「工具名」，不能给一整串命令。"
+                f"只允许字母开头、由字母数字和 . _ + - 组成。")
+    base = t.rsplit("/", 1)[-1].lower()
+    if base in GENERIC_EXEC:
+        return (f"'{base}' 是通用命令 / 解释器 / 下载器，不属于安全工具，"
+                f"AI 不能通过 sec_run 调它。\n"
+                f"  要跑扫描: nmap / nuclei / sqlmap / ffuf / gobuster / nikto / hydra / whatweb\n"
+                f"  要跑任意命令: 这一步留给人类 —— secforge sh，或 docker exec -it secforge bash")
+    return ""
+
+
+def _check_tool(tool: str):
+    """完整校验（含"容器里真存在吗"）。返回 (ok, 原因)。"""
+    why = _check_name(tool)
+    if why:
+        return False, why
+    t = tool.strip()
+    if t not in _WHICH_CACHE:
+        r = dex("command -v " + t + " >/dev/null 2>&1 && echo __YES__ || echo __NO__", 30)
+        _WHICH_CACHE[t] = "__YES__" in r
+    if not _WHICH_CACHE[t]:
+        return False, (f"容器里没有 '{t}'。用 sec_catalog 找一个真正存在的工具，"
+                       f"或用 sec_install_tool 先把它装上。")
+    return True, ""
+
+
+def _check_job_command(command: str) -> str:
+    """后台任务必须是「一次工具调用」，不能是 shell 脚本。返回拒绝原因，空串=通过。"""
+    c = (command or "").strip()
+    if not c:
+        return "命令为空。"
+    m = _first_meta(c)
+    if m:
+        return (f"后台命令里不能带 shell 语法（出现了 {m!r}）—— 它是一次工具调用，不是脚本。\n"
+                f"  正确写法: \"nmap -p- -T4 192.168.10.1\"\n"
+                f"  输出本来就会落到 /loot/jobs/ 的日志里，不需要管道和重定向。")
+    return _check_name(c.split()[0])
+
+
+def _check_install_recipe(*parts: str) -> str:
+    """安装配方 / 工具名 / 仓库地址里出现 shell 特殊字符就拒绝（防工具库被投毒）。"""
+    for p in parts:
+        m = _first_meta(p or "")
+        if m:
+            return (f"安装配方里出现 shell 特殊字符 {m!r}，拒绝执行 —— "
+                    f"这条记录来自爬取的工具库，可能被投毒。请人工核对后手动安装。")
+    return ""
+
+
 def container_up() -> bool:
     r = subprocess.run(["docker", "ps", "--filter", f"name=^{CONTAINER}$",
                         "--format", "{{.Names}}"], capture_output=True, text=True)
@@ -268,7 +380,8 @@ def sec_run(tool: str, args: str = "", target: str = "", timeout: int = 300) -> 
     """在 Kali 容器里运行一个安全工具(同步等结果)。
 
     Args:
-        tool: 工具名, 如 nmap / nuclei / sqlmap / ffuf / nikto / hydra / whatweb
+        tool: 安全工具名, 如 nmap / nuclei / sqlmap / ffuf / nikto / hydra / whatweb
+              (有白名单: 必须是容器里真实存在的安全工具; sh/bash/python/curl 这类不行)
         args: 完整参数(不用带工具名), 如 "-sV -T4 192.168.10.1"
         target: 目标(会走安全护栏检查; 填了且 args 为空则自动生成基础扫描命令)
         timeout: 秒
@@ -282,11 +395,15 @@ def sec_run(tool: str, args: str = "", target: str = "", timeout: int = 300) -> 
                 "nuclei": f"-u {target} -severity low,medium,high,critical",
                 "whatweb": f"-a 3 {target}",
                 "nikto": f"-h {target}",
-                "nuclei-http": f"-u {target}",
                 "httpx": f"-u {target} -title -tech-detect -status-code"}.get(tool, f"{target}")
     e = need_up()
     if e:
         return e
+    # 先验工具名(有白名单), 再看参数 —— 顺序有意为之: 叫 bash 时要报"不是安全工具",
+    # 而不是被"参数为空"这种无关理由挡住
+    ok, why = _check_tool(tool)
+    if not ok:
+        return why
     # 参数按 shell 规则切成 argv 后**以 argv 形式**交给容器 —— 不经过 shell。
     # 所以参数里的 ; | ` $(...) 只是普通字符，不会被解释成命令。
     try:
@@ -331,13 +448,21 @@ def shell_in_container(command: str, timeout: int = 300) -> str:
 
 @mcp.tool()
 def sec_job_start(name: str, command: str, target: str = "") -> str:
-    """后台跑长任务(全端口扫描/目录爆破等), 结果落 /loot/jobs/"""
+    """后台跑长任务(全端口扫描/目录爆破等), 结果落 /loot/jobs/
+
+    command 必须是「一次工具调用」, 不能是 shell 脚本:
+    首个词有工具白名单, 且整串不允许 ; & | < > 反引号 $ ( ) 和换行。
+    例如 "nmap -p- -T4 192.168.10.1" —— 输出会自动落到日志文件里。
+    """
     g = guard(target) if target else ""
     if g:
         return g
     e = need_up()
     if e:
         return e
+    why = _check_job_command(command)
+    if why:
+        return why
     jid = f"{safe_id(name, 'task')}_{uuid.uuid4().hex[:6]}"
     dex(f"mkdir -p /loot/jobs && nohup bash -c '{command.replace(chr(39), chr(39)+chr(92)+chr(39)+chr(39))}' "
         f"> /loot/jobs/{jid}.log 2>&1 & echo $! > /loot/jobs/{jid}.pid", 60)
@@ -401,6 +526,9 @@ def sec_install_tool(name: str, method: str = "") -> str:
         return f"库里没有 {name}"
     m = method or r["install_method"]
     spec = r["install_spec"] or ""
+    why = _check_install_recipe(spec, r["name"], r["url"])
+    if why:
+        return why + "  名称: " + r["name"] + "  配方: " + spec + "  仓库: " + (r["url"] or "")
     cmds = {
         "apt": f"apt-get update -qq && apt-get install -y --no-install-recommends {spec or r['name']}",
         "pip": f"pip3 install --break-system-packages --no-cache-dir {spec or r['name']} || pipx install {spec or r['name']}",
